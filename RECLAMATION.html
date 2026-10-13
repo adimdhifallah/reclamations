@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<title>Réclamer à la MeS — prototype</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<style>
+/* Layout : barre de scénario en haut, PDA (téléphone) à gauche et collant, admin / mails à droite ; empilé avec onglets sous 900px. */
+:root{
+  --bg:#f4f2ed; --surface:#ffffff; --fg:#1f1d1a; --muted:#6f6a62; --line:#e0dcd3; --chip:#ece8e0;
+  --accent:#e0742a; --accent-ink:#ffffff;
+  --good:#2f7d4f; --warn:#b86e00; --crit:#c43c2d; --info:#2f5f8f;
+  --font:'Roboto',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#19191c; --surface:#242428; --fg:#ecebe7; --muted:#a39f97; --line:#3a3a41; --chip:#303036;
+    --accent:#ef8a3f; --accent-ink:#1a1a1a;
+    --good:#5bbf86; --warn:#e0a24a; --crit:#ef7a6c; --info:#7fb0e0; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#19191c; --surface:#242428; --fg:#ecebe7; --muted:#a39f97; --line:#3a3a41; --chip:#303036;
+  --accent:#ef8a3f; --accent-ink:#1a1a1a;
+  --good:#5bbf86; --warn:#e0a24a; --crit:#ef7a6c; --info:#7fb0e0; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.45;padding-inline:16px;padding-block:12px 32px}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+button{font:inherit;cursor:pointer}
+input,textarea,select{font:inherit}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,label:focus-within{outline:2px solid var(--info);outline-offset:2px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---- barre de scénario ---- */
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;max-width:1280px;margin:0 auto 10px}
+.top h1{font-size:18px;font-weight:500}
+.top h1 span{color:var(--muted);font-weight:400}
+.scenario{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.clock{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-weight:500}
+.clock .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.sbtn{padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)}
+.sbtn:hover:not(:disabled){border-color:var(--accent)}
+.sbtn:disabled{opacity:.45;cursor:default}
+.sbtn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.intro{max-width:1280px;margin:0 auto 14px;color:var(--muted);font-size:13px}
+.vtabs{display:none;max-width:1280px;margin:0 auto 12px;gap:6px}
+.vtabs button{flex:1;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)}
+.vtabs button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* ---- scène ---- */
+.stage{display:grid;grid-template-columns:400px minmax(0,1fr);gap:24px;max-width:1280px;margin:0 auto;align-items:start}
+.phone-col{position:sticky;top:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel-col{min-width:0;display:flex;flex-direction:column;gap:12px}
+@media (max-width:899px){
+  .stage{grid-template-columns:1fr}
+  .phone-col{position:static}
+  .vtabs{display:flex}
+  body[data-view="admin"] .phone-col{display:none}
+  body[data-view="pda"] .panel-col{display:none}
+}
+.hint{font-size:12px;color:var(--muted);text-align:center}
+
+/* ---- téléphone : rendu volontairement clair, comme l'application réelle ---- */
+.phone{width:100%;max-width:400px;margin:0 auto;height:760px;max-height:calc(100vh - 40px);border:9px solid #1b1b1f;border-radius:34px;background:#ffffff;color:#222222;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.phone .notch{height:22px;background:#1b1b1f;flex:none;display:flex;justify-content:center}
+.phone .notch i{width:90px;height:14px;background:#000;border-radius:0 0 10px 10px}
+.screen{flex:1;overflow:auto;background:#ffffff;color:#222222;font-family:var(--font);font-size:14px;padding:0 0 24px}
+.screen *{color:inherit}
+.pbar{display:flex;align-items:center;justify-content:center;gap:8px;position:relative;padding:8px 10px 4px}
+.pbar .plink{position:absolute;left:8px;top:6px;background:none;border:0;color:#2b5a8c;font-weight:500;padding:4px 6px}
+.chipc{background:#ececec;color:#333;padding:3px 10px;border-radius:5px;font-weight:700;font-size:13px}
+.ptitle{margin:8px 12px;padding:10px;border:1px dashed #e0742a;border-radius:6px;background:#faf8f4;color:#e0742a;text-align:center;font-size:20px;font-weight:700}
+.ohead{text-align:center;margin-top:8px;font-size:16px}
+.onum{background:#333;color:#fff;padding:2px 8px;border-radius:5px;font-weight:700;margin:0 4px}
+.ostatus{background:#4fa3e0;color:#fff;padding:2px 7px;border-radius:5px;font-size:12px}
+.oprog{margin:8px 12px;background:#f3f3f3;border-radius:6px;padding:6px;text-align:center}
+.red{color:#c43c2d}.blue{color:#2b5a8c}.orange{color:#e0742a}.green{color:#2f7d4f}
+.odates{text-align:center;color:#555;font-size:13px}
+.obtns{display:flex;gap:10px;justify-content:center;margin:10px 0}
+.btn-blue{background:#3b5d85;color:#fff;border:0;border-radius:6px;padding:9px 14px;font-weight:700}
+.btn-red{background:#c84a44;color:#fff;border:0;border-radius:6px;padding:9px 14px;font-weight:700}
+.btn-navy{background:#3b5d85;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:700;flex:1}
+.btn-grey{background:#f1f1f1;color:#222;border:0;border-radius:6px;padding:10px 16px;font-weight:700}
+.btn-orange-solid{background:#e0742a;color:#fff;border:0;border-radius:6px;padding:10px 16px;font-weight:700}
+.btn-claim{background:#e0742a;color:#fff;border:0;border-radius:6px;padding:10px 16px;font-weight:700;display:inline-flex;align-items:center;gap:6px;position:relative}
+.btn-claim.big{width:100%;justify-content:center;padding:14px;font-size:16px}
+.btn-claim .cnt{background:#fff;color:#e0742a;border-radius:999px;font-size:11px;padding:1px 6px}
+.phelp{color:#666;font-size:12px;padding:6px 12px;border-top:1px solid #eee;border-bottom:1px solid #eee}
+.psearch{display:block;width:calc(100% - 24px);margin:10px 12px;padding:10px;border:1px solid #cfd4da;border-radius:6px;background:#fff}
+.plist{display:flex;flex-direction:column}
+.prow{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:#fff;border:0;border-top:1px solid #eee;padding:10px 12px}
+.prow:active{background:#f7f3ee}
+.pimg{width:52px;height:52px;border-radius:8px;background:#efe9df;flex:none;position:relative}
+.pimg::after{content:"";position:absolute;inset:12px;border-radius:50%;background:#fbf7f0;border:1px solid #d9d0c2}
+.pinfo{min-width:0;flex:1}
+.pname{font-size:14px;line-height:1.35}
+.pid{color:#777;font-size:12px;margin-left:2px}
+.fz{background:#4fc3a0;color:#fff;font-size:11px;padding:1px 6px;border-radius:5px;font-weight:700;margin-left:4px}
+.zone{background:#333;color:#fff;font-size:11px;padding:1px 6px;border-radius:5px;font-weight:700;margin-left:4px}
+.meta{color:#666;font-size:12px;margin-left:4px}
+.pnums{margin-top:4px;color:#666;font-size:13px}
+.pnums .n{display:inline-block;min-width:22px;text-align:center;background:#eee;color:#222;border-radius:4px;padding:0 5px;font-weight:700}
+.pnums .n.blue{background:#dcebf7;color:#2b5a8c}
+.pnums .n.red{background:#fbe3e1;color:#c43c2d}
+.pnums .n.orange{background:#fde8d5;color:#b85a14}
+.pnums .n.green{background:#def3e5;color:#2f7d4f}
+.center{text-align:center}
+.chip-orange{display:inline-block;background:#e0742a;color:#fff;font-size:12px;padding:2px 8px;border-radius:5px;margin-top:6px}
+.pprod{font-size:18px;font-weight:400;text-align:center;padding:8px 14px 2px}
+.ideal{text-align:center;color:#666;font-size:14px}
+.purple{background:#6b4fbf;color:#fff;padding:1px 6px;border-radius:5px;font-weight:700}
+.stockbar{margin:10px 12px 4px;background:#f6f3ec;padding:7px;text-align:center;font-weight:700;color:#333}
+.badge-red{background:#c43c2d;color:#fff;padding:1px 7px;border-radius:5px;margin-left:6px}
+.ecom{text-align:center;color:#555;font-size:13px;margin-bottom:6px}
+.zrow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #eee}
+.zcode{font-size:22px;letter-spacing:1px}
+.zdate{font-size:11px;color:#777}
+.zrow input{width:72px;padding:9px;border:1px solid #cfd4da;border-radius:6px;text-align:center;margin-left:auto}
+.dlc{text-align:center;margin:12px 0 4px;color:#555}
+.pimg-big{width:200px;height:150px;margin:0 auto;border:1px solid #e5e5e5;border-radius:6px;background:#fff;position:relative}
+.pimg-big::after{content:"";position:absolute;left:50px;top:30px;width:100px;height:90px;border-radius:50%;background:#f7f2e8;border:1px solid #d9d0c2;box-shadow:inset 0 -10px 0 #efe6d6}
+.actions{display:flex;gap:10px;justify-content:center;margin:14px 12px}
+.claims-on-line{margin:0 12px 10px;border:1px solid #f3cfae;background:#fff7ef;border-radius:8px;padding:8px 10px;font-size:13px}
+.claims-on-line b{color:#b85a14}
+.claims-on-line .row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:3px 0}
+.claims-on-line button{background:none;border:0;color:#2b5a8c;font-weight:500;padding:2px 4px}
+.claims-on-line .sent{color:#2f7d4f}
+.switch{display:flex;gap:8px;align-items:flex-start;margin:6px 12px 12px;padding:8px 10px;border:1px dashed #cfd4da;border-radius:8px;font-size:12px;color:#555}
+.switch input{margin-top:2px}
+
+/* formulaire de réclamation */
+.ctx{margin:8px 12px;border:1px solid #e5e5e5;border-radius:8px;padding:10px;background:#fafafa}
+.ctx-name{font-weight:500;font-size:15px}
+.ctx-order{margin-top:4px;font-size:13px;color:#444}
+.ctx-order .ok{display:inline-block;background:#def3e5;color:#2f7d4f;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:700;margin-right:4px}
+.cand{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border:1px solid #cfd4da;border-radius:6px;margin-top:6px;background:#fff}
+.cand.on{border-color:#e0742a;background:#fff7ef}
+.cand input{margin-top:3px}
+.ctx-nums{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:8px}
+.ctx-nums div{background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:5px 2px;text-align:center}
+.ctx-nums span{display:block;font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.03em}
+.ctx-nums b{font-size:16px}
+.ctx-nums .hl{border-color:#e0742a;background:#fff7ef}
+.fsec{padding:8px 12px}
+.flabel{font-weight:500;margin-bottom:6px}
+.flabel small{color:#777;font-weight:400;margin-left:6px}
+.typebtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tbtn{padding:12px 8px;border:2px solid #cfd4da;border-radius:10px;background:#fff;font-size:16px;font-weight:700;display:flex;flex-direction:column;gap:2px;align-items:center}
+.tbtn small{font-weight:400;font-size:12px;color:#777}
+.tbtn.on{border-color:#e0742a;background:#fff7ef;color:#b85a14}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{width:48px;height:48px;border-radius:10px;border:1px solid #cfd4da;background:#fff;font-size:24px}
+.stepper input{width:90px;height:48px;text-align:center;font-size:22px;border:1px solid #cfd4da;border-radius:10px;font-variant-numeric:tabular-nums}
+.stepper .unit{color:#777}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 12px;border:1px solid #cfd4da;border-radius:999px;background:#fff;font-size:14px}
+.chip.on{background:#e0742a;color:#fff;border-color:#e0742a;font-weight:700}
+.photos{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid #ddd}
+.photo-add{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;border:1px dashed #e0742a;border-radius:8px;color:#b85a14;background:#fff;font-weight:500;cursor:pointer}
+.photo-add.alt{border-style:solid;border-color:#cfd4da;color:#555;font-weight:400}
+.check{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13px;color:#555}
+textarea.fcomment{width:100%;padding:10px;border:1px solid #cfd4da;border-radius:8px;resize:vertical;background:#fff}
+.ferr{margin:4px 12px;padding:10px;border-radius:8px;background:#fbe3e1;color:#8a2a21;font-weight:500}
+.fsubmit{padding:8px 12px 4px}
+.done{padding:40px 20px;text-align:center}
+.done .ok-ic{width:72px;height:72px;border-radius:50%;background:#def3e5;color:#2f7d4f;font-size:40px;line-height:72px;margin:0 auto 14px;font-weight:700}
+.done h3{font-size:20px;font-weight:500}
+.done .sum{margin:10px 0;font-size:15px}
+.done .when{color:#555;font-size:13px}
+.done .btns{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+
+/* ---- admin : maquette claire, comme admin.deleev.com ---- */
+.atabs{display:flex;flex-wrap:wrap;gap:6px}
+.atabs button{padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)}
+.atabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.atabs .cnt{display:inline-block;min-width:18px;padding:0 5px;border-radius:999px;background:var(--chip);color:var(--fg);font-size:11px;margin-left:4px;text-align:center}
+.atabs button.on .cnt{background:rgba(255,255,255,.35);color:inherit}
+.mock{background:#ffffff;color:#212529;border:1px solid #cfd4da;border-radius:10px;overflow:hidden;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px}
+.mock *{color:inherit}
+.mock-url{background:#eef0f3;color:#5a6270;font-size:12px;padding:6px 12px;border-bottom:1px solid #d7dbe0;display:flex;gap:8px;align-items:center}
+.mock-url i{width:10px;height:10px;border-radius:50%;background:#c9ced6;display:inline-block}
+.mock-head{padding:14px 16px 8px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.mock-head h3{font-size:20px;font-weight:600}
+.filters{color:#5a6270;font-size:13px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.filters select{padding:4px 6px;border:1px solid #cfd4da;border-radius:6px;background:#fff}
+.sgroup{border-top:1px solid #e3e6ea;padding:12px 16px 16px}
+.shead{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.shead .sname{font-size:16px;font-weight:600}
+.shead .stot{color:#5a6270}
+.b-primary{background:#0d6efd;color:#fff;border:0;border-radius:6px;padding:7px 12px;font-weight:500}
+.b-primary:disabled{background:#9ec0f5;cursor:default}
+.b-light{background:#f1f3f5;color:#212529;border:1px solid #cfd4da;border-radius:6px;padding:5px 9px;font-size:13px}
+.b-light.danger{color:#b02a37}
+.b-light.good{color:#157347}
+.semail{font-size:13px;color:#5a6270}
+.anom{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:8px 10px;border-radius:6px;background:#fff3cd;color:#664d03;font-size:13px}
+.anom input{padding:5px 8px;border:1px solid #cfd4da;border-radius:6px;background:#fff;min-width:0;flex:1}
+.scomment{margin-top:10px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:#5a6270}
+.scomment textarea{width:100%;padding:8px;border:1px solid #cfd4da;border-radius:6px;background:#fff;color:#212529;resize:vertical}
+.ohead2{margin:12px 0 6px;font-weight:600;color:#343a40}
+.twrap{overflow-x:auto}
+.ctable{width:100%;border-collapse:collapse;min-width:900px}
+.ctable th:first-child,.ctable td:first-child{min-width:230px}
+.ctable td:nth-child(7){min-width:150px}
+.ctable th,.ctable td{padding:7px 8px;border-top:1px solid #e3e6ea;text-align:left;vertical-align:top;font-size:13px}
+.ctable th{color:#5a6270;font-weight:600;font-size:12px;border-top:0}
+.ctable td.r,.ctable th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctable tr.envoyee td{color:#6c757d}
+.ctable tr.bloquee td:first-child{box-shadow:inset 3px 0 0 #e0742a}
+.ctable .qty{width:64px;padding:4px;border:1px solid #cfd4da;border-radius:5px;text-align:right;background:#fff;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.a_envoyer{background:#dbe7f6;color:#1d4f8c}
+.pill.bloquee{background:#fde8d5;color:#9a4a0c}
+.pill.envoyee{background:#d6f0e0;color:#146c43}
+.pill.avoir_recu{background:#e2e3e5;color:#41464b}
+.tag{display:inline-block;padding:1px 6px;border-radius:5px;font-size:11px;font-weight:600;background:#f8d7da;color:#842029;margin-left:4px;white-space:nowrap}
+.tag.warn{background:#fff3cd;color:#664d03}
+.acts{white-space:nowrap}
+.acts button+button{margin-left:4px}
+.inline-block{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.inline-block input{padding:4px 6px;border:1px solid #cfd4da;border-radius:5px;background:#fff;width:160px}
+.mthumb{width:34px;height:34px;border-radius:5px;object-fit:cover;border:1px solid #ddd;margin-right:3px;vertical-align:middle}
+.empty{padding:28px 16px;text-align:center;color:#5a6270}
+.empty .b-primary{margin-top:10px}
+
+/* récap GChat */
+.gchat{padding:16px}
+.gmsg{display:flex;gap:10px;align-items:flex-start;max-width:720px}
+.gav{width:36px;height:36px;border-radius:50%;background:#e0742a;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.gbody{flex:1;min-width:0}
+.gname{font-weight:600}.gname span{color:#5a6270;font-weight:400;margin-left:6px;font-size:12px}
+.gcard{margin-top:6px;border:1px solid #e3e6ea;border-radius:10px;padding:12px 14px;background:#f8f9fa;font-size:13px}
+.gcard h4{font-size:14px;margin-bottom:6px}
+.gcard .gs{margin-top:10px;padding-top:8px;border-top:1px solid #e3e6ea}
+.gcard .gs:first-of-type{border-top:0;padding-top:0}
+.gcard ul{margin:4px 0 0;padding-left:18px}
+.gcard .gw{color:#8a5a00;background:#fff3cd;padding:6px 8px;border-radius:6px;margin-top:8px}
+.gcard a{color:#0d6efd}
+
+/* mails */
+.mail{border-top:1px solid #e3e6ea;padding:14px 16px}
+.mail-status{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:#d6f0e0;color:#146c43;margin-bottom:8px}
+.mail.preview .mail-status{background:#dbe7f6;color:#1d4f8c}
+.mail-meta{font-size:13px;color:#343a40;display:grid;gap:2px}
+.mail-body{margin-top:12px;padding:14px;border:1px solid #e3e6ea;border-radius:8px;background:#fff;font-size:13px;max-width:720px}
+.mail-body p{margin:0 0 10px}
+.mail-body h4{font-size:13px;margin:12px 0 6px}
+.mtable{width:100%;border-collapse:collapse;font-size:12px}
+.mtable th,.mtable td{border:1px solid #dee2e6;padding:4px 6px;text-align:left}
+.mtable td.r,.mtable th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mail-body .total{font-size:14px;margin-top:10px}
+.mail-id{color:#6c757d;font-size:11px}
+.jtable{width:100%;border-collapse:collapse}
+.jtable th,.jtable td{padding:8px 12px;border-top:1px solid #e3e6ea;font-size:13px;text-align:left}
+.jtable th{border-top:0;color:#5a6270;font-size:12px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}}
+@keyframes pop{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+</style>
+
+</head>
+<body>
+<header class="top">
+  <h1>Réclamer à la MeS <span>· prototype cliquable</span></h1>
+  <div class="scenario" id="scenario"></div>
+</header>
+<p class="intro">Scénario : réception Anthès découpe #131390 au centre Reuilly. Tout ce que tu saisis sur le PDA se retrouve dans la liste du soir, puis dans le mail de 22h. Données d'exemple ; les prix viennent de la commande réelle quand ils sont connus.</p>
+<nav class="vtabs" id="vtabs" aria-label="Vue"></nav>
+
+<main class="stage">
+  <section class="phone-col">
+    <div class="phone"><div class="notch"><i></i></div><div class="screen" id="pda"></div></div>
+    <p class="hint">PDA opérateur. Tape un produit, puis « Réclamer ».</p>
+  </section>
+  <section class="panel-col">
+    <div class="atabs" id="atabs"></div>
+    <div id="admin"></div>
+  </section>
+</main>
+<div id="toast" hidden class="toast"></div>
+
+<script>
+(function(){
+'use strict';
+var STORE='reclamer-mes-proto-v1';
+var REASONS={mauvaise_etiquette:'Mauvaise étiquette',dlc_courte:'DLC trop courte',abime:'Produit abîmé ou cassé',chaine_froid:'Rupture de chaîne du froid',erreur_produit:'Erreur de produit',poids:'Poids non conforme',manquant:'Manquant',autre:'Autre'};
+var OPERATOR='Opérateur PDA · Reuilly';
+var BUYER='achats@deleev.com';
+
+/* Commandes du scénario. Anthès #131390 reprend les lignes visibles dans l'admin ; les prix connus viennent du Montant MeS réel. */
+var ORDERS=[
+ {id:131390,sup:'anthes',sent:'05/10/2026',received:'06/10/2026',center:'Reuilly',live:true,lines:[
+  {pid:7133,name:'Rocamadour AOC (chèvre, environ 35 g)',zone:'1029.8.72',weight:'35 g',cmd:56,bl:56,mes:0,price:1.157,ideal:'52 colis de'},
+  {pid:4454,name:'Epoisses AOP (environ 250 g)',zone:'1028.3.43',weight:'250 g',cmd:3,bl:3,mes:0,price:5.30,ideal:'12 colis de'},
+  {pid:5393,name:'Saint-Marcellin IGP (80 g)',zone:'1019.10.81',weight:'80 g',cmd:6,bl:6,mes:0,price:1.45,ideal:'24 colis de'},
+  {pid:4164,name:'Brie de Melun AOP (environ 200 - 250 g)',zone:'1034.0.54',weight:'225 g',cmd:3,bl:3,mes:3,price:5.92,ideal:'8 colis de'},
+  {pid:13692,name:'Stilton Blue AOP (environ 200 - 250 g)',zone:'1018.3.52',weight:'225 g',cmd:3,bl:3,mes:3,price:6.10,ideal:'8 colis de'},
+  {pid:4068,name:'Banon AOP au lait de chèvre (80 à 90 g)',zone:'1033.0.24',weight:'85 g',cmd:7,bl:7,mes:0,price:3.10,ideal:'20 colis de'},
+  {pid:5635,name:'Valencay AOP Fermier (de 200 à 250 g)',zone:'1026.4.55',weight:'225 g',cmd:1,bl:1,mes:0,price:5.60,ideal:'8 colis de'},
+  {pid:4990,name:"Mont d'Or Campagne de France AOP (environ 750 g)",zone:'1021.1.42',weight:'750 g',cmd:1,bl:1,mes:1,price:9.80,ideal:'6 colis de'},
+  {pid:30587,name:'Besace de chèvre truffée (environ 100 - 150 g)',zone:'1025.5.53',weight:'125 g',cmd:2,bl:2,mes:2,price:4.20,ideal:'12 colis de'},
+  {pid:2201,name:"Pont l'Eveque AOP P. Gautier (environ 220 g)",zone:'1017.6.54',weight:'220 g',cmd:5,bl:5,mes:4,price:2.98,ideal:'10 colis de'},
+  {pid:2207,name:'Petit Livarot AOP (environ 250 g)',zone:'1032.8.54',weight:'250 g',cmd:2,bl:2,mes:2,price:4.805,ideal:'10 colis de'},
+  {pid:2210,name:'Munster AOP (environ 200 g)',zone:'1018.3.41',weight:'200 g',cmd:15,bl:15,mes:15,price:2.538,ideal:'12 colis de'},
+  {pid:2214,name:'Scamorza fumée (environ 300 g)',zone:'1032.4.62',weight:'300 g',cmd:33,bl:33,mes:33,price:3.627,ideal:'12 colis de'}
+ ]},
+ {id:131500,sup:'anthes',sent:'06/10/2026',received:'06/10/2026',center:'Reuilly',lines:[
+  {pid:4454,name:'Epoisses AOP (environ 250 g)',zone:'1028.3.43',weight:'250 g',cmd:4,bl:null,mes:0,price:5.30,ideal:'12 colis de'},
+  {pid:2301,name:'Comté AOP 18 mois (environ 250 g)',zone:'1020.2.11',weight:'250 g',cmd:10,bl:null,mes:0,price:4.90,ideal:'12 colis de'}
+ ]},
+ {id:131412,sup:'martin',sent:'05/10/2026',received:'06/10/2026',center:'Reuilly',lines:[
+  {pid:20111,name:'Fraises gariguette (barquette 250 g)',zone:'2011.3.08',weight:'250 g',cmd:24,bl:24,mes:12,price:1.95,ideal:'8 colis de'},
+  {pid:20245,name:'Avocat Hass (pièce)',zone:'2012.1.40',weight:'180 g',cmd:60,bl:60,mes:40,price:0.90,ideal:'30 colis de'}
+ ]},
+ {id:131420,sup:'lemaire',sent:'05/10/2026',received:'06/10/2026',center:'Reuilly',lines:[
+  {pid:30877,name:'Pain de campagne 400 g',zone:'3001.0.12',weight:'400 g',cmd:20,bl:20,mes:14,price:2.10,ideal:'10 colis de'}
+ ]}
+];
+
+function seed(){
+ return {
+  day:'06/10/2026', time:'10:27', nextId:5, nextEnvoi:1,
+  suppliers:{
+   anthes:{name:'Anthès découpe',email:'reclamations@anthes-decoupe.example',comment:''},
+   martin:{name:'Primeurs Martin (exemple)',email:'litiges@primeurs-martin.example',comment:''},
+   lemaire:{name:'Boulangerie Lemaire (exemple)',email:'',comment:''}
+  },
+  claims:[
+   {id:1,orderId:131390,pid:2201,sup:'anthes',type:'manquant',qty:1,reason:'manquant',comment:'',photos:[],noPhoto:true,price:2.98,amount:2.98,status:'a_envoyer',blockReason:'',batchId:null,createdBy:OPERATOR,createdAt:'06/10/2026 09:40'},
+   {id:2,orderId:131412,pid:20111,sup:'martin',type:'refuse',qty:12,reason:'abime',comment:'Barquettes écrasées sur la palette',photos:[samplePhoto(1),samplePhoto(2)],noPhoto:false,price:1.95,amount:23.40,status:'a_envoyer',blockReason:'',batchId:null,createdBy:OPERATOR,createdAt:'06/10/2026 08:12'},
+   {id:3,orderId:131412,pid:20245,sup:'martin',type:'manquant',qty:20,reason:'manquant',comment:'',photos:[],noPhoto:true,price:0.90,amount:18.00,status:'a_envoyer',blockReason:'',batchId:null,createdBy:OPERATOR,createdAt:'06/10/2026 08:20'},
+   {id:4,orderId:131420,pid:30877,sup:'lemaire',type:'refuse',qty:6,reason:'dlc_courte',comment:'DLC au 07/10',photos:[samplePhoto(3)],noPhoto:false,price:2.10,amount:12.60,status:'a_envoyer',blockReason:'',batchId:null,createdBy:OPERATOR,createdAt:'06/10/2026 09:05'}
+  ],
+  envois:[], recaps:[],
+  pda:{screen:'list',orderId:131390,pid:null,inv:false,form:null},
+  adminTab:'liste', filter:'tous', view:'pda', blocking:null
+ };
+}
+function samplePhoto(i){
+ var svg="<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='320' height='240' fill='#d9d3c7'/><rect x='70' y='60' width='180' height='120' rx='14' fill='#f6f3ee' stroke='#9a938a'/><rect x='95' y='85' width='130' height='70' fill='#ffffff' stroke='#bbbbbb'/><rect x='105' y='95' width='70' height='6' fill='#999'/><rect x='105' y='108' width='110' height='4' fill='#bbb'/><rect x='105' y='118' width='90' height='4' fill='#bbb'/><rect x='105' y='135' width='110' height='12' fill='#333'/><text x='160' y='215' font-family='sans-serif' font-size='13' text-anchor='middle' fill='#555'>photo d'exemple "+i+"</text></svg>";
+ return 'data:image/svg+xml;utf8,'+encodeURIComponent(svg);
+}
+var S=load()||seed();
+function load(){try{var r=localStorage.getItem(STORE);return r?JSON.parse(r):null}catch(e){return null}}
+function save(){try{localStorage.setItem(STORE,JSON.stringify(S))}catch(e){}}
+
+/* ---- helpers ---- */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function eur(n){return (Math.round(n*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'}
+function eur3(n){return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:3})+' €'}
+function order(id){for(var i=0;i<ORDERS.length;i++)if(ORDERS[i].id===id)return ORDERS[i];return null}
+function line(orderId,pid){var o=order(orderId);if(!o)return null;for(var i=0;i<o.lines.length;i++)if(o.lines[i].pid===pid)return o.lines[i];return null}
+function activeClaims(orderId,pid){return S.claims.filter(function(c){return c.orderId===orderId&&c.pid===pid&&c.status!=='supprimee'})}
+function claimedQty(orderId,pid){return activeClaims(orderId,pid).reduce(function(a,c){return a+c.qty},0)}
+function maxQty(l){return l.bl!=null?l.bl:l.cmd}
+function remaining(orderId,pid){var l=line(orderId,pid);return Math.max(0,maxQty(l)-l.mes-claimedQty(orderId,pid))}
+function supplier(k){return S.suppliers[k]}
+function parseDay(d){var p=d.split('/');return new Date(+p[2],+p[1]-1,+p[0])}
+function fmtDay(dt){return ('0'+dt.getDate()).slice(-2)+'/'+('0'+(dt.getMonth()+1)).slice(-2)+'/'+dt.getFullYear()}
+function dayDiff(a,b){return Math.round((parseDay(a)-parseDay(b))/864e5)}
+function weekday(d){return ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'][parseDay(d).getDay()]}
+function hour(){return parseInt(S.time.split(':')[0],10)}
+function now(){return S.day+' '+S.time}
+function typeLabel(t){return t==='manquant'?'Manquant':'Refusé'}
+function statusLabel(s){return {a_envoyer:'À envoyer',bloquee:'Bloquée',envoyee:'Envoyée',avoir_recu:'Avoir reçu'}[s]||s}
+function candidates(pid){
+ var out=[];ORDERS.forEach(function(o){var l=line(o.id,pid);if(!l)return;if(Math.abs(dayDiff(S.day,o.received))>1)return;if(remaining(o.id,pid)<=0&&!o.live)return;out.push(o)});return out;
+}
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(function(){t.hidden=true},2600)}
+function commit(){save();render()}
+
+/* ---- jobs 21h / 22h ---- */
+function pendingBySupplier(){
+ var g={};S.claims.forEach(function(c){if(c.status!=='a_envoyer')return;(g[c.sup]=g[c.sup]||[]).push(c)});return g;
+}
+function runRecap(){
+ var g=pendingBySupplier(),groups=[];
+ Object.keys(g).forEach(function(k){
+  var cl=g[k],sp=supplier(k),an=[];
+  if(!sp.email)an.push('aucune adresse de réclamation sur la fiche fournisseur : pas d’envoi à 22h');
+  cl.forEach(function(c){var l=line(c.orderId,c.pid);if(c.type==='refuse'&&!c.photos.length)an.push(l.name+' : refusé sans photo');if(!c.amount)an.push(l.name+' : montant à 0, prix inconnu')});
+  groups.push({sup:k,n:cl.length,total:cl.reduce(function(a,c){return a+c.amount},0),ids:cl.map(function(c){return c.id}),anomalies:an});
+ });
+ S.recaps.unshift({day:S.day,time:S.time,groups:groups});
+}
+function sendSupplier(k,manual){
+ var sp=supplier(k),cl=S.claims.filter(function(c){return c.sup===k&&c.status==='a_envoyer'});
+ if(!cl.length||!sp.email)return null;
+ var id=S.nextEnvoi++;
+ var e={id:id,ref:'DLV-'+S.day.split('/').reverse().join('')+'-'+String(id).padStart(3,'0'),sup:k,day:S.day,sentAt:now(),manual:!!manual,to:sp.email,cc:BUYER,comment:sp.comment,ids:cl.map(function(c){return c.id}),total:cl.reduce(function(a,c){return a+c.amount},0),photos:cl.reduce(function(a,c){return a+c.photos.length},0),status:'envoye'};
+ cl.forEach(function(c){c.status='envoyee';c.batchId=id;c.sentAt=e.sentAt});
+ S.envois.unshift(e);return e;
+}
+function runSend(){var g=pendingBySupplier(),n=0;Object.keys(g).forEach(function(k){if(sendSupplier(k,false))n++});return n}
+
+/* ---- rendu : barre de scénario ---- */
+function renderScenario(){
+ var h=hour();
+ document.getElementById('scenario').innerHTML=
+  '<span class="clock"><i class="dot"></i>'+weekday(S.day)+' '+S.day+' · '+S.time+'</span>'+
+  '<button class="sbtn" data-action="go21" '+(h>=21?'disabled':'')+'>Passer à 21h00 · récap</button>'+
+  '<button class="sbtn primary" data-action="go22" '+(h>=22?'disabled':'')+'>Passer à 22h00 · envoi</button>'+
+  '<button class="sbtn" data-action="nextday">Jour suivant</button>'+
+  '<button class="sbtn" data-action="reset">Réinitialiser la démo</button>';
+ document.getElementById('vtabs').innerHTML=
+  '<button class="'+(S.view==='pda'?'on':'')+'" data-action="view" data-v="pda">PDA</button><button class="'+(S.view==='admin'?'on':'')+'" data-action="view" data-v="admin">Admin · 21h–22h · mails</button>';
+ document.body.dataset.view=S.view;
+}
+
+/* ---- rendu : PDA ---- */
+function renderPda(){
+ var el=document.getElementById('pda'),p=S.pda,html='';
+ if(p.screen==='list')html=pdaList();
+ else if(p.screen==='product')html=pdaProduct();
+ else if(p.screen==='claim')html=pdaClaim();
+ else if(p.screen==='done')html=pdaDone();
+ el.innerHTML=html;
+}
+function pdaList(){
+ var o=order(S.pda.orderId),treated=0,rows='';
+ o.lines.forEach(function(l){
+  var cq=claimedQty(o.id,l.pid),ok=l.mes+cq>=maxQty(l);if(ok)treated++;
+  rows+='<button class="prow" data-action="open-product" data-pid="'+l.pid+'"><div class="pimg"></div><div class="pinfo">'+
+   '<div class="pname">'+esc(l.name)+' <span class="pid">#'+l.pid+'</span><span class="fz">FreeZoning</span><span class="zone">'+l.zone+'</span><span class="meta">Poids <b>'+l.weight+'</b></span></div>'+
+   '<div class="pnums">stock <b class="n blue">'+l.mes+'</b> | BL <b class="n">'+maxQty(l)+'</b> | MeS <b class="n '+(l.mes>=maxQty(l)?'green':'red')+'">'+l.mes+'</b>'+(cq?' | Récl. <b class="n orange">'+cq+'</b>':'')+'</div></div></button>';
+ });
+ return '<div class="pbar"><span class="chipc">Reuilly</span></div><div class="ptitle">Mise en stock (sans code barre)</div>'+
+  '<div class="ohead"><b>'+esc(supplier(o.sup).name)+'</b><span class="onum">#'+o.id+'</span><span class="ostatus">Envoyée</span></div>'+
+  '<div class="oprog"><b class="'+(treated<o.lines.length?'red':'green')+'">'+treated+'</b> /'+o.lines.length+' produits</div>'+
+  '<div class="odates">Dt. d’envoi le <b>'+o.sent+'</b> · récept. prévue le <b>'+o.received+'</b></div>'+
+  '<div class="obtns"><button class="btn-blue" type="button">Actualiser la liste</button><button class="btn-red" type="button">Autre MeS</button></div>'+
+  '<div class="phelp">- Selectionnez / Scannez le code barre d’un produit<br>- Poursuivre la MeS sur l’interface habituelle.</div>'+
+  '<input class="psearch" id="pda-search" placeholder="recherche..." aria-label="Recherche">'+
+  '<div class="plist">'+rows+'</div>';
+}
+function pdaProduct(){
+ var p=S.pda,l=line(p.orderId,p.pid),cl=activeClaims(p.orderId,p.pid),cq=claimedQty(p.orderId,p.pid),rem=remaining(p.orderId,p.pid);
+ var clh='';
+ if(cl.length){
+  clh='<div class="claims-on-line"><b>Réclamations sur cette ligne aujourd’hui</b>';
+  cl.forEach(function(c){
+   clh+='<div class="row"><span>'+c.qty+' '+(c.type==='manquant'?'manquant'+(c.qty>1?'s':''):'refusé'+(c.qty>1?'s':''))+' · '+esc(REASONS[c.reason])+' · '+c.createdAt.split(' ')[1]+'</span>'+
+    (c.status==='envoyee'?'<span class="sent">envoyée</span>':c.status==='bloquee'?'<span class="orange">bloquée</span>':'<button type="button" data-action="pda-cancel-claim" data-id="'+c.id+'">annuler</button>')+'</div>';
+  });
+  clh+='</div>';
+ }
+ return '<div class="pbar"><button type="button" class="plink" data-action="pda-back-list">‹ Liste MeS</button><span class="chipc">Reuilly</span></div>'+
+  '<div class="center"><span class="chip-orange">Inventaire</span></div>'+
+  '<h2 class="pprod">'+esc(l.name)+' <span class="pid">#'+l.pid+'</span><span class="fz">FreeZoning</span></h2>'+
+  '<div class="ideal">Idéalement <b class="blue">'+l.ideal+'</b> <span class="purple">1 pièce</span> par emplacement</div>'+
+  '<div class="stockbar">Stock réel sur les étagères <span class="badge-red">'+l.mes+'</span></div><div class="ecom">Stock e-com. : <b>0</b></div>'+
+  '<div class="zrow"><div><b class="zcode">'+l.zone+'</b><div class="zdate">02/10/2026 à 14:52</div></div><input value="'+l.mes+'" aria-label="Quantité en zone" readonly><button class="btn-navy" type="button" style="flex:0 0 110px">Modifier</button></div>'+
+  '<div class="center" style="margin-top:8px"><button class="btn-orange-solid" type="button">Afficher tous les zonages</button></div>'+
+  '<div class="phelp center" style="margin-top:8px">Pour ajouter une nouvelle zone,<br>commencer par scanner cette dernière</div>'+
+  '<div class="dlc">Date limite en stock <b class="red">12/10/2026</b></div><div class="pimg-big"></div>'+
+  '<div class="center small" style="margin-top:4px">code barre : <b>9000000'+String(l.pid).padStart(5,'0')+'</b></div>'+
+  '<div class="actions"><button class="btn-red" type="button">Rezoner</button><button class="btn-claim" type="button" data-action="open-claim">&#9888; Réclamer'+(cq?'<span class="cnt">'+cq+'</span>':'')+'</button></div>'+
+  (rem===0&&cl.length?'<div class="center small muted" style="color:#777">Plus rien à réclamer sur cette ligne (restant 0).</div>':'')+
+  clh+
+  '<label class="switch"><input type="checkbox" data-action="toggle-inv" '+(p.inv?'checked':'')+'> Simuler l’ouverture par scan (mode Inventaire : la commande n’est pas connue, le système la retrouve)</label>'+
+  '<div class="center"><button class="btn-grey" type="button" data-action="pda-back-list">scanner un autre produit</button></div>';
+}
+function pdaClaim(){
+ var p=S.pda,f=p.form,l=line(f.orderId||p.orderId,p.pid);
+ var orderBlock='';
+ if(f.cands){
+  if(f.cands.length===0)return '<div class="pbar"><button type="button" class="plink" data-action="claim-cancel">‹ Retour</button><span class="chipc">Reuilly</span></div><div class="ptitle">Réclamation</div><div class="ferr" style="margin-top:20px">Aucune commande ouverte pour ce produit à Reuilly (ni aujourd’hui, ni J−1, ni J+1). Signaler à l’acheteur : il pourra créer la réclamation depuis l’admin.</div><div class="fsubmit"><button class="btn-grey" type="button" data-action="claim-cancel" style="width:100%">Retour au produit</button></div>';
+  if(f.cands.length===1)orderBlock='<div class="ctx-order"><span class="ok">1 commande trouvée</span>Rattachée automatiquement à <b>#'+f.cands[0].id+' '+esc(supplier(f.cands[0].sup).name)+'</b> · reçue le '+f.cands[0].received+'</div>';
+  else{
+   orderBlock='<div class="ctx-order"><b>'+f.cands.length+' commandes ouvertes pour ce produit</b>, choisis la bonne :</div>';
+   f.cands.forEach(function(o){var ll=line(o.id,p.pid);orderBlock+='<label class="cand '+(f.orderId===o.id?'on':'')+'"><input type="radio" name="cand" data-action="pick-order" data-v="'+o.id+'" '+(f.orderId===o.id?'checked':'')+'><span><b>#'+o.id+' '+esc(supplier(o.sup).name)+'</b> · reçue le '+o.received+'<br><span class="small" style="color:#666">Commandé '+ll.cmd+' · BL '+(ll.bl!=null?ll.bl:'non intégré')+' · MeS '+ll.mes+' · restant '+remaining(o.id,p.pid)+'</span></span></label>'});
+  }
+ }else orderBlock='<div class="ctx-order">Commande <b>#'+p.orderId+' '+esc(supplier(order(p.orderId).sup).name)+'</b> · reçue le '+order(p.orderId).received+'</div>';
+ var oid=f.orderId,nums='';
+ if(oid){var ll=line(oid,p.pid),rem=remaining(oid,p.pid);
+  nums='<div class="ctx-nums"><div><span>Commandé</span><b>'+ll.cmd+'</b></div><div><span>BL</span><b>'+(ll.bl!=null?ll.bl:'—')+'</b></div><div><span>Mis en stock</span><b>'+ll.mes+'</b></div><div><span>Déjà récl.</span><b>'+claimedQty(oid,p.pid)+'</b></div><div class="hl"><span>Restant</span><b>'+rem+'</b></div></div>';
+ }
+ var chips='';Object.keys(REASONS).forEach(function(k){if(k==='manquant')return;chips+='<button type="button" class="chip '+(f.reason===k?'on':'')+'" data-action="set-reason" data-v="'+k+'">'+esc(REASONS[k])+'</button>'});
+ var thumbs='';f.photos.forEach(function(ph,i){thumbs+='<img class="thumb" src="'+ph+'" alt="photo '+(i+1)+'" data-action="photo-remove" data-v="'+i+'" title="Retirer">'});
+ var hideRefuse=f.type!=='refuse';
+ var rem2=oid?remaining(oid,p.pid):0;
+ return '<div class="pbar"><button type="button" class="plink" data-action="claim-cancel">‹ Annuler</button><span class="chipc">Reuilly</span></div><div class="ptitle">Réclamation</div>'+
+  '<div class="ctx"><div class="ctx-name">'+esc(l.name)+' <span class="pid">#'+p.pid+'</span></div>'+orderBlock+nums+'</div>'+
+  (oid?'<div class="fsec"><div class="flabel">Type</div><div class="typebtns"><button type="button" class="tbtn '+(f.type==='manquant'?'on':'')+'" data-action="set-type" data-v="manquant">Manquant<small>pas livré</small></button><button type="button" class="tbtn '+(f.type==='refuse'?'on':'')+'" data-action="set-type" data-v="refuse">Refusé<small>livré, non conforme</small></button></div></div>'+
+  '<div class="fsec"><div class="flabel">Quantité<small>max '+rem2+' pièces</small></div><div class="stepper"><button type="button" data-action="qty-dec" aria-label="moins">−</button><input id="f-qty" type="number" inputmode="numeric" min="1" max="'+rem2+'" value="'+f.qty+'" aria-label="Quantité"><button type="button" data-action="qty-inc" aria-label="plus">+</button><span class="unit">pièces</span></div></div>'+
+  '<div class="fsec" '+(hideRefuse?'hidden':'')+'><div class="flabel">Motif</div><div class="chips">'+chips+'</div></div>'+
+  '<div class="fsec" '+(hideRefuse?'hidden':'')+'><div class="flabel">Photos<small>obligatoire si refusé</small></div><div class="photos">'+thumbs+'<label class="photo-add">&#128247; Prendre une photo<input type="file" accept="image/*" capture="environment" data-action="photo-file" hidden></label><button type="button" class="photo-add alt" data-action="photo-sample">Ajouter une photo d’exemple</button></div><label class="check"><input type="checkbox" data-action="no-photo" '+(f.noPhoto?'checked':'')+'> Photo impossible (PDA sans caméra)</label></div>'+
+  '<div class="fsec"><div class="flabel">Commentaire<small>'+(f.reason==='autre'?'obligatoire':'optionnel, interne, jamais envoyé tel quel')+'</small></div><textarea id="f-comment" class="fcomment" rows="2" placeholder="ex. étiquette d’un autre produit">'+esc(f.comment)+'</textarea></div>'+
+  (f.error?'<div class="ferr">'+esc(f.error)+'</div>':'')+
+  '<div class="fsubmit"><button type="button" class="btn-claim big" data-action="claim-submit">Valider la réclamation</button></div>':
+  '<div class="fsubmit"><button type="button" class="btn-grey" style="width:100%" disabled>Choisis une commande pour continuer</button></div>');
+}
+function pdaDone(){
+ var c=S.claims[S.claims.length-1],l=line(c.orderId,c.pid),sp=supplier(c.sup);
+ var late=hour()>=22;
+ return '<div class="done"><div class="ok-ic">&#10003;</div><h3>Réclamation enregistrée</h3>'+
+  '<div class="sum">'+c.qty+' × '+esc(l.name)+'<br><b>'+(c.type==='manquant'?'manquant':'refusé')+(c.qty>1?'s':'')+' · '+esc(REASONS[c.reason])+' · '+eur(c.amount)+' HT</b></div>'+
+  '<div class="when">Rattachée à la commande #'+c.orderId+'. '+(late?'Il est plus de 22h : elle partira demain à 22h':'Elle partira à 22h')+' avec les autres réclamations '+esc(sp.name)+' du jour. Tu peux la modifier ou l’annuler jusque-là.</div>'+
+  '<div class="btns"><button type="button" class="btn-navy" data-action="pda-back-product">Retour au produit</button><button type="button" class="btn-grey" data-action="pda-back-list">Scanner un autre produit</button></div></div>';
+}
+
+/* ---- rendu : admin ---- */
+function renderAdmin(){
+ var pend=S.claims.filter(function(c){return c.status==='a_envoyer'}).length;
+ var tabs=[['liste','Liste des réclamations',S.claims.filter(function(c){return c.status!=='supprimee'}).length],['recap','Récap 21h',S.recaps.length],['mails','Mails 22h',S.envois.length+(pend?1:0)],['journal','Journal des envois',S.envois.length]];
+ document.getElementById('atabs').innerHTML=tabs.map(function(t){return '<button type="button" class="'+(S.adminTab===t[0]?'on':'')+'" data-action="atab" data-v="'+t[0]+'">'+t[1]+'<span class="cnt">'+t[2]+'</span></button>'}).join('');
+ var el=document.getElementById('admin');
+ if(S.adminTab==='liste')el.innerHTML=adminListe();
+ else if(S.adminTab==='recap')el.innerHTML=adminRecap();
+ else if(S.adminTab==='mails')el.innerHTML=adminMails();
+ else el.innerHTML=adminJournal();
+}
+function adminListe(){
+ var groups={};
+ S.claims.forEach(function(c){if(c.status==='supprimee')return;if(S.filter!=='tous'&&c.status!==S.filter)return;(groups[c.sup]=groups[c.sup]||[]).push(c)});
+ var keys=Object.keys(groups).sort(function(a,b){return supplier(a).name.localeCompare(supplier(b).name)});
+ var h='<div class="mock"><div class="mock-url"><i></i><i></i><i></i> admin.deleev.com/claims/ · Liste des réclamations</div>'+
+  '<div class="mock-head"><h3>Liste des réclamations</h3><div class="filters">Centre <b>Reuilly</b> · Jour <b>'+S.day+'</b> · Statut <select data-action="filter" aria-label="Statut">'+['tous','a_envoyer','bloquee','envoyee'].map(function(s){return '<option value="'+s+'" '+(S.filter===s?'selected':'')+'>'+(s==='tous'?'Tous':statusLabel(s))+'</option>'}).join('')+'</select></div></div>';
+ if(!keys.length)h+='<div class="empty">Aucune réclamation pour ce filtre.</div>';
+ keys.forEach(function(k){
+  var sp=supplier(k),cl=groups[k],pend=cl.filter(function(c){return c.status==='a_envoyer'}),total=cl.reduce(function(a,c){return a+(c.status==='supprimee'?0:c.amount)},0);
+  h+='<section class="sgroup"><header class="shead"><div><span class="sname">'+esc(sp.name)+'</span> <span class="stot">· '+cl.length+' ligne'+(cl.length>1?'s':'')+' · '+eur(total)+' HT</span>'+(sp.email?'<div class="semail">Réclamations → '+esc(sp.email)+' · cc '+BUYER+'</div>':'')+'</div>'+
+   '<div class="sactions"><button type="button" class="b-primary" data-action="send-now" data-sup="'+k+'" '+(pend.length&&sp.email?'':'disabled')+'>Envoyer maintenant ('+pend.length+')</button></div></header>';
+  if(!sp.email)h+='<div class="anom">&#9888; Aucune adresse de réclamation sur la fiche fournisseur : rien ne partira à 22h. <input type="email" id="email-'+k+'" placeholder="adresse@fournisseur.fr" aria-label="Adresse de réclamation"><button type="button" class="b-light" data-action="set-email" data-sup="'+k+'">Enregistrer sur la fiche</button></div>';
+  h+='<div class="scomment"><label for="sc-'+k+'">Commentaire de fin de courriel (ajouté au mail de ce fournisseur)</label><textarea id="sc-'+k+'" rows="1" data-action="sup-comment" data-sup="'+k+'" placeholder="ex. Merci de livrer les Rocamadour ré-étiquetés avec la commande de jeudi.">'+esc(sp.comment)+'</textarea></div>';
+  var byOrder={};cl.forEach(function(c){(byOrder[c.orderId]=byOrder[c.orderId]||[]).push(c)});
+  Object.keys(byOrder).forEach(function(oid){
+   var o=order(+oid);
+   h+='<div class="ohead2">Commande #'+o.id+' · reçue le '+o.received+' · centre '+o.center+'</div><div class="twrap"><table class="ctable"><thead><tr><th>Produit</th><th>Type</th><th class="r">Qté</th><th>Motif</th><th class="r">Montant HT</th><th>Photos</th><th>Saisie</th><th>Statut</th><th></th></tr></thead><tbody>';
+   byOrder[oid].forEach(function(c){
+    var l=line(c.orderId,c.pid),editable=c.status==='a_envoyer'||c.status==='bloquee';
+    var photos=c.photos.length?c.photos.map(function(p){return '<img class="mthumb" src="'+p+'" alt="">'}).join(''):'<span class="small" style="color:#6c757d">—</span>';
+    if(c.type==='refuse'&&!c.photos.length)photos+='<span class="tag warn">sans photo</span>';
+    var acts='';
+    if(S.blocking===c.id)acts='<div class="inline-block"><input id="br-'+c.id+'" placeholder="Raison du blocage" aria-label="Raison du blocage"><button type="button" class="b-light" data-action="block-confirm" data-id="'+c.id+'">Bloquer</button><button type="button" class="b-light" data-action="block-cancel">Annuler</button></div>';
+    else if(c.status==='a_envoyer')acts='<button type="button" class="b-light" data-action="block" data-id="'+c.id+'">Bloquer</button><button type="button" class="b-light danger" data-action="delete" data-id="'+c.id+'">Supprimer</button>';
+    else if(c.status==='bloquee')acts='<button type="button" class="b-light good" data-action="unblock" data-id="'+c.id+'">Débloquer</button><button type="button" class="b-light danger" data-action="delete" data-id="'+c.id+'">Supprimer</button>';
+    else acts='<span class="small" style="color:#6c757d">&#128274; envoi #'+c.batchId+'</span>';
+    h+='<tr class="'+c.status+'"><td>'+esc(l.name)+'<div class="small" style="color:#6c757d">'+l.zone+' · PU '+eur3(c.price)+(l.bl==null?' (prix commande, BL non intégré)':'')+'</div></td><td>'+typeLabel(c.type)+'</td>'+
+     '<td class="r">'+(editable?'<input class="qty" type="number" min="1" max="'+(c.qty+remaining(c.orderId,c.pid))+'" value="'+c.qty+'" data-action="edit-qty" data-id="'+c.id+'" aria-label="Quantité">':c.qty)+'</td>'+
+     '<td>'+esc(REASONS[c.reason])+(c.comment?'<div class="small" style="color:#6c757d">'+esc(c.comment)+'</div>':'')+'</td><td class="r">'+eur(c.amount)+'</td><td>'+photos+'</td>'+
+     '<td>'+esc(c.createdBy)+'<div class="small" style="color:#6c757d">'+c.createdAt+'</div></td><td><span class="pill '+c.status+'">'+statusLabel(c.status)+'</span>'+(c.status==='bloquee'&&c.blockReason?'<div class="small" style="color:#6c757d">'+esc(c.blockReason)+'</div>':'')+'</td><td class="acts">'+acts+'</td></tr>';
+   });
+   h+='</tbody></table></div>';
+  });
+  h+='</section>';
+ });
+ return h+'</div>';
+}
+function adminRecap(){
+ var h='<div class="mock"><div class="mock-url"><i></i><i></i><i></i> Google Chat · groupe « Réclamations Reuilly »</div>';
+ if(!S.recaps.length)return h+'<div class="empty">Le récap est posté par le système à 21h00, une heure avant l’envoi. Rien n’a encore été posté aujourd’hui.<br><button type="button" class="b-primary" data-action="go21">Passer à 21h00</button></div></div>';
+ S.recaps.forEach(function(r){
+  var tot=r.groups.reduce(function(a,g){return a+g.total},0),nl=r.groups.reduce(function(a,g){return a+g.n},0);
+  h+='<div class="gchat"><div class="gmsg"><div class="gav">D</div><div class="gbody"><div class="gname">Deleev · réclamations<span>'+r.day+' '+r.time+'</span></div><div class="gcard">';
+  if(!r.groups.length)h+='<h4>Récap du '+r.day+' : rien à envoyer ce soir.</h4>';
+  else{
+   h+='<h4>Récap des réclamations du '+r.day+' · '+r.groups.length+' fournisseur'+(r.groups.length>1?'s':'')+' · '+nl+' ligne'+(nl>1?'s':'')+' · '+eur(tot)+' HT</h4><div>Envoi automatique à <b>22h00</b>. Corrige ou bloque une ligne avant dans <a href="#liste" data-action="atab" data-v="liste">Liste des réclamations</a>.</div>';
+   r.groups.forEach(function(g){
+    h+='<div class="gs"><b>'+esc(supplier(g.sup).name)+'</b> — '+g.n+' ligne'+(g.n>1?'s':'')+' · '+eur(g.total)+' HT<ul>';
+    g.ids.forEach(function(id){var c=S.claims.filter(function(x){return x.id===id})[0];if(!c)return;var l=line(c.orderId,c.pid);h+='<li>'+esc(l.name)+' — '+c.qty+' '+(c.type==='manquant'?'manquant':'refusé')+(c.qty>1?'s':'')+' · '+esc(REASONS[c.reason])+' · #'+c.orderId+' · '+eur(c.amount)+(c.status!=='a_envoyer'?' <i>('+statusLabel(c.status).toLowerCase()+' depuis)</i>':'')+'</li>'});
+    h+='</ul>';
+    g.anomalies.forEach(function(a){h+='<div class="gw">&#9888; '+esc(a)+'</div>'});
+    h+='</div>';
+   });
+  }
+  h+='</div></div></div></div>';
+ });
+ return h+'</div>';
+}
+function mailHtml(e,preview){
+ var sp=supplier(e.sup),cl=e.ids.map(function(id){return S.claims.filter(function(x){return x.id===id})[0]}).filter(Boolean);
+ var byOrder={};cl.forEach(function(c){(byOrder[c.orderId]=byOrder[c.orderId]||[]).push(c)});
+ var subj='Demande d’avoir — '+sp.name+' — livraison du '+e.day+' — '+eur(e.total)+' HT';
+ var h='<article class="mail '+(preview?'preview':'sent')+'"><div class="mail-status">'+(preview?'Aperçu · partira à 22h00':'Envoyé le '+e.sentAt+(e.manual?' · envoi manuel':' · job 22h'))+'</div>'+
+  '<div class="mail-meta"><div><b>De :</b> '+BUYER+'</div><div><b>À :</b> '+esc(e.to||sp.email||'(aucune adresse)')+'</div><div><b>Cc :</b> '+BUYER+', acheteur référent</div><div><b>Objet :</b> '+esc(subj)+'</div><div><b>Pièces jointes :</b> demande-avoir-'+(e.ref||'XXX')+'.pdf'+(e.photos?', '+e.photos+' photo'+(e.photos>1?'s':''):'')+'</div></div>'+
+  '<div class="mail-body"><p>Bonjour,</p><p>Lors de la réception de votre livraison du '+e.day+' au centre Reuilly, nous avons constaté les écarts ci-dessous. Merci de nous adresser un avoir du montant indiqué.</p>';
+ var pn=0;
+ Object.keys(byOrder).forEach(function(oid){
+  var o=order(+oid);
+  h+='<h4>Commande n° '+o.id+' — BL du '+o.received+'</h4><div class="twrap"><table class="mtable"><tr><th>Produit</th><th>Réf.</th><th class="r">Qté BL</th><th class="r">Manquant</th><th class="r">Refusé</th><th>Motif</th><th class="r">P.U. HT</th><th class="r">Montant HT</th></tr>';
+  byOrder[oid].sort(function(a,b){return b.amount-a.amount}).forEach(function(c){
+   var l=line(c.orderId,c.pid),ph='';if(c.photos.length){var a=pn+1;pn+=c.photos.length;ph=' (photo'+(c.photos.length>1?'s '+a+'-'+pn:' '+a)+')'}
+   h+='<tr><td>'+esc(l.name)+'</td><td>'+l.zone+'</td><td class="r">'+(l.bl!=null?l.bl:l.cmd)+'</td><td class="r">'+(c.type==='manquant'?c.qty:0)+'</td><td class="r">'+(c.type==='refuse'?c.qty:0)+'</td><td>'+esc(REASONS[c.reason])+ph+'</td><td class="r">'+eur3(c.price)+'</td><td class="r">'+eur(c.amount)+'</td></tr>';
+  });
+  h+='</table></div>';
+ });
+ h+='<p class="total">Total de l’avoir demandé : <b>'+eur(e.total)+' HT</b></p>'+(e.comment?'<p>'+esc(e.comment)+'</p>':'')+'<p>Cordialement,<br>L’équipe achats Deleev — '+BUYER+'</p><p class="mail-id">Réf. envoi '+(e.ref||'attribuée à l’envoi')+' · à rappeler dans votre réponse</p></div></article>';
+ return h;
+}
+function adminMails(){
+ var h='<div class="mock"><div class="mock-url"><i></i><i></i><i></i> Mails fournisseurs · un mail par fournisseur et par jour</div>';
+ var g=pendingBySupplier(),keys=Object.keys(g),any=false;
+ keys.forEach(function(k){var sp=supplier(k);var cl=g[k];
+  if(!sp.email){h+='<div class="mail preview"><div class="mail-status" style="background:#fff3cd;color:#664d03">Bloqué · '+esc(sp.name)+' n’a pas d’adresse de réclamation</div><div class="small" style="color:#5a6270">'+cl.length+' ligne'+(cl.length>1?'s':'')+' en attente ('+eur(cl.reduce(function(a,c){return a+c.amount},0))+' HT). Renseigne l’adresse dans la liste pour débloquer l’envoi.</div></div>';any=true;return}
+  h+=mailHtml({sup:k,day:S.day,to:sp.email,comment:sp.comment,ids:cl.map(function(c){return c.id}),total:cl.reduce(function(a,c){return a+c.amount},0),photos:cl.reduce(function(a,c){return a+c.photos.length},0)},true);any=true;
+ });
+ S.envois.forEach(function(e){h+=mailHtml(e,false);any=true});
+ if(!any)h+='<div class="empty">Aucun mail en attente ni envoyé. Crée une réclamation sur le PDA.</div>';
+ return h+'</div>';
+}
+function adminJournal(){
+ var h='<div class="mock"><div class="mock-url"><i></i><i></i><i></i> Journal des envois · demandes d’avoir</div>';
+ if(!S.envois.length)return h+'<div class="empty">Aucun envoi pour l’instant. Passe à 22h00 ou utilise « Envoyer maintenant ».</div></div>';
+ h+='<div class="twrap"><table class="jtable"><thead><tr><th>Réf.</th><th>Fournisseur</th><th>Envoyé le</th><th>Déclenché par</th><th>Lignes</th><th>Montant demandé</th><th>Avoir reçu</th><th>Statut</th></tr></thead><tbody>';
+ S.envois.forEach(function(e){h+='<tr><td>'+e.ref+'</td><td>'+esc(supplier(e.sup).name)+'</td><td>'+e.sentAt+'</td><td>'+(e.manual?'Acheteur (Envoyer maintenant)':'Job 22h')+'</td><td>'+e.ids.length+'</td><td class="num">'+eur(e.total)+'</td><td>—</td><td><span class="pill envoyee">Envoyé</span></td></tr>'});
+ return h+'</tbody></table></div></div>';
+}
+function render(){renderScenario();renderPda();renderAdmin()}
+
+/* ---- actions ---- */
+function startClaim(){
+ var p=S.pda,cands=null,oid=p.orderId;
+ if(p.inv){cands=candidates(p.pid);oid=cands.length===1?cands[0].id:null}
+ var rem=oid?remaining(oid,p.pid):0;
+ p.form={orderId:oid,cands:cands,type:null,qty:Math.max(1,rem),reason:null,photos:[],noPhoto:false,comment:'',error:null};
+ p.screen='claim';
+}
+function submitClaim(){
+ var p=S.pda,f=p.form;
+ f.qty=parseInt((document.getElementById('f-qty')||{}).value,10)||0;f.comment=(document.getElementById('f-comment')||{}).value||'';
+ var rem=remaining(f.orderId,p.pid),l=line(f.orderId,p.pid);
+ if(!f.type){f.error='Choisis le type : manquant ou refusé.';return}
+ if(f.qty<1){f.error='La quantité doit être au moins 1.';return}
+ if(f.qty>rem){f.error='Quantité trop élevée : il reste '+rem+' pièce'+(rem>1?'s':'')+' réclamable'+(rem>1?'s':'')+' sur cette ligne ('+maxQty(l)+' au BL − '+l.mes+' en stock − '+claimedQty(f.orderId,p.pid)+' déjà réclamées).';return}
+ var reason=f.type==='manquant'?'manquant':f.reason;
+ if(!reason){f.error='Choisis un motif.';return}
+ if(reason==='autre'&&!f.comment.trim()){f.error='Pour le motif « Autre », un commentaire est obligatoire.';return}
+ if(f.type==='refuse'&&!f.photos.length&&!f.noPhoto){f.error='Ajoute au moins une photo, ou coche « Photo impossible ».';return}
+ var c={id:S.nextId++,orderId:f.orderId,pid:p.pid,sup:order(f.orderId).sup,type:f.type,qty:f.qty,reason:reason,comment:f.comment.trim(),photos:f.type==='refuse'?f.photos:[],noPhoto:f.noPhoto,price:l.price,amount:Math.round(f.qty*l.price*100)/100,status:'a_envoyer',blockReason:'',batchId:null,createdBy:OPERATOR,createdAt:now()};
+ S.claims.push(c);p.orderId=f.orderId;p.form=null;p.screen='done';
+}
+function addPhotoFile(file){
+ var r=new FileReader();r.onload=function(){var img=new Image();img.onload=function(){var k=Math.min(1,640/Math.max(img.width,img.height)),cv=document.createElement('canvas');cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);S.pda.form.photos.push(cv.toDataURL('image/jpeg',.72));commit()};img.src=r.result};r.readAsDataURL(file);
+}
+
+document.addEventListener('click',function(ev){
+ var t=ev.target.closest('[data-action]');if(!t)return;
+ var a=t.dataset.action,v=t.dataset.v,p=S.pda;
+ if(t.tagName==='INPUT'&&(t.type==='checkbox'||t.type==='radio'||t.type==='file'||t.type==='number'))return;
+ if(t.tagName==='SELECT'||t.tagName==='TEXTAREA')return;
+ if(a==='atab'){ev.preventDefault();S.adminTab=v;S.view='admin';commit();return}
+ if(a==='view'){S.view=v;commit();return}
+ if(a==='go21'){S.time='21:00';runRecap();S.adminTab='recap';S.view='admin';commit();toast('21h00 : récap posté dans le groupe GChat');return}
+ if(a==='go22'){if(hour()<21){S.time='21:00';runRecap()}S.time='22:00';var n=runSend();S.adminTab='mails';S.view='admin';commit();toast('22h00 : '+n+' mail'+(n>1?'s':'')+' fournisseur envoyé'+(n>1?'s':''));return}
+ if(a==='nextday'){var d=parseDay(S.day);d.setDate(d.getDate()+1);S.day=fmtDay(d);S.time='08:55';S.recaps=[];p.screen='list';p.form=null;commit();toast('Nouvelle journée : '+S.day);return}
+ if(a==='reset'){try{localStorage.removeItem(STORE)}catch(e){}S=seed();commit();toast('Démo réinitialisée');return}
+ /* PDA */
+ if(a==='open-product'){p.pid=+t.dataset.pid;p.screen='product';commit();return}
+ if(a==='pda-back-list'){p.screen='list';p.form=null;commit();return}
+ if(a==='pda-back-product'){p.screen='product';commit();return}
+ if(a==='open-claim'){startClaim();commit();return}
+ if(a==='claim-cancel'){p.form=null;p.screen='product';commit();return}
+ if(a==='pda-cancel-claim'){var cc=S.claims.filter(function(x){return x.id===+t.dataset.id})[0];if(cc&&cc.status==='a_envoyer'){cc.status='supprimee';commit();toast('Réclamation annulée')}return}
+ if(a==='set-type'){p.form.type=v;p.form.error=null;if(v==='manquant'){p.form.reason=null}commit();return}
+ if(a==='set-reason'){p.form.reason=v;p.form.error=null;commit();return}
+ if(a==='qty-dec'||a==='qty-inc'){var inp=document.getElementById('f-qty'),q=parseInt(inp.value,10)||0,mx=parseInt(inp.max,10);q+=a==='qty-inc'?1:-1;inp.value=Math.min(mx,Math.max(1,q));p.form.qty=+inp.value;save();return}
+ if(a==='photo-sample'){p.form.comment=document.getElementById('f-comment').value;p.form.photos.push(samplePhoto(p.form.photos.length+1));commit();return}
+ if(a==='photo-remove'){p.form.comment=document.getElementById('f-comment').value;p.form.photos.splice(+v,1);commit();return}
+ if(a==='claim-submit'){submitClaim();commit();return}
+ /* admin */
+ if(a==='send-now'){var e=sendSupplier(t.dataset.sup,true);if(e){commit();toast('Mail envoyé à '+supplier(e.sup).name+' · '+eur(e.total)+' HT')}return}
+ if(a==='set-email'){var inp2=document.getElementById('email-'+t.dataset.sup);if(inp2&&inp2.value.trim()){supplier(t.dataset.sup).email=inp2.value.trim();commit();toast('Adresse enregistrée sur la fiche fournisseur')}return}
+ if(a==='block'){S.blocking=+t.dataset.id;commit();setTimeout(function(){var i=document.getElementById('br-'+t.dataset.id);if(i)i.focus()},0);return}
+ if(a==='block-cancel'){S.blocking=null;commit();return}
+ if(a==='block-confirm'){var i2=document.getElementById('br-'+t.dataset.id),reason=i2?i2.value.trim():'';if(!reason){i2.focus();i2.placeholder='Raison obligatoire';return}var c2=S.claims.filter(function(x){return x.id===+t.dataset.id})[0];c2.status='bloquee';c2.blockReason=reason;S.blocking=null;commit();toast('Ligne bloquée : elle ne partira pas tant qu’elle n’est pas débloquée');return}
+ if(a==='unblock'){var c3=S.claims.filter(function(x){return x.id===+t.dataset.id})[0];c3.status='a_envoyer';c3.blockReason='';commit();toast('Ligne débloquée : elle partira au prochain envoi');return}
+ if(a==='delete'){var c4=S.claims.filter(function(x){return x.id===+t.dataset.id})[0];c4.status='supprimee';commit();toast('Réclamation supprimée');return}
+});
+document.addEventListener('change',function(ev){
+ var t=ev.target.closest('[data-action]');if(!t)return;var a=t.dataset.action,p=S.pda;
+ if(a==='toggle-inv'){p.inv=t.checked;save();return}
+ if(a==='pick-order'){p.form.orderId=+t.dataset.v;p.form.qty=Math.max(1,remaining(p.form.orderId,p.pid));p.form.error=null;commit();return}
+ if(a==='no-photo'){p.form.noPhoto=t.checked;save();return}
+ if(a==='photo-file'){if(t.files&&t.files[0]){p.form.comment=document.getElementById('f-comment').value;addPhotoFile(t.files[0])}return}
+ if(a==='filter'){S.filter=t.value;commit();return}
+ if(a==='sup-comment'){supplier(t.dataset.sup).comment=t.value;save();return}
+ if(a==='edit-qty'){var c=S.claims.filter(function(x){return x.id===+t.dataset.id})[0],q=parseInt(t.value,10)||1,mx=parseInt(t.max,10);q=Math.min(mx,Math.max(1,q));c.qty=q;c.amount=Math.round(q*c.price*100)/100;commit();toast('Quantité mise à jour, montant recalculé');return}
+});
+document.addEventListener('input',function(ev){
+ var t=ev.target;if(t.id==='f-comment'&&S.pda.form){S.pda.form.comment=t.value}
+ if(t.id==='f-qty'&&S.pda.form){S.pda.form.qty=parseInt(t.value,10)||0}
+ if(t.id==='pda-search'){var q=t.value.toLowerCase();document.querySelectorAll('.prow').forEach(function(r){r.hidden=q&&r.textContent.toLowerCase().indexOf(q)<0})}
+});
+render();
+})();
+</script>
+
+</body>
+</html>
